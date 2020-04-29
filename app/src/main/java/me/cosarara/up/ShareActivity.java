@@ -1,8 +1,10 @@
 package me.cosarara.up;
 
 import android.app.PendingIntent;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -42,159 +44,146 @@ public class ShareActivity extends AppCompatActivity {
     private final OkHttpClient client = new OkHttpClient();
     private Handler mHandler;
 
-    //private static final int UPLOAD_DONE = 0;
+    private void doUpload(Intent intent) throws Exception {
+        String mime = intent.getType();
+        mHandler = new Handler(Looper.getMainLooper());
+        final TextView textView = findViewById(R.id.textView);
+
+        Uri uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+
+        //textView.setText("step 2: "+uri);
+        if (uri == null) {
+            String text = intent.getStringExtra(Intent.EXTRA_TEXT);
+            if (text == null) {
+                textView.setText("Couldn't find any data!");
+                return;
+            }
+            textView.setText("Plain text not implemented yet, sorry!");
+            return;
+        }
+
+        final InputStream uriStream = getContentResolver().openInputStream(uri);
+        Log.i("upload", "mime: " + mime);
+        final MediaType mediaType = MediaType.parse(mime);
+
+        // https://stackoverflow.com/questions/25367888/upload-binary-file-with-okhttp-from-resources
+        RequestBody file_part = new RequestBody() {
+            @Override
+            public MediaType contentType() {
+                return mediaType;
+            }
+
+            @Override
+            public long contentLength() {
+                try {
+                    return uriStream.available();
+                } catch (IOException e) {
+                    return 0;
+                }
+            }
+
+            @Override
+            public void writeTo(BufferedSink sink) throws IOException {
+                Source source = null;
+                try {
+                    source = Okio.source(uriStream);
+                    sink.writeAll(source);
+                } finally {
+                    Util.closeQuietly(source);
+                }
+            }
+        };
+
+
+        //buffer_stream.toByteArray().toRequestBody();
+
+        URL api_url = new URL("https://api.teknik.io/v1/Upload");
+        String filename = uri.getLastPathSegment();
+        Log.i("upload", "filename "+filename);
+
+        RequestBody requestBody = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("file", filename, file_part)
+                .build();
+
+        Request request = new Request.Builder()
+                .url(api_url)
+                .post(requestBody)
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                final String mMessage = e.toString();
+                //Log.e(LOG_TAG, mMessage); // no need inside run()
+                mHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.e("upload", "http failure "+mMessage);
+                        //mTextView.setText(mMessage); // must be inside run()
+                    }
+                });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                final String s = response.body().string();
+                String turl = "";
+                try {
+                    JSONObject j = new JSONObject(s);
+                    JSONObject r = j.getJSONObject("result");
+                    if (r == null) {
+                        throw new JSONException("no result: " + s);
+                    }
+                    turl = r.getString("url");
+                } catch (JSONException e) {
+                    Log.e("upload", "json problem", e);
+                }
+                final String url = turl;
+
+                Intent i = new Intent(Intent.ACTION_VIEW);
+                i.setData(Uri.parse(url));
+                startActivity(i);
+                Log.i("upload", "http ok "+url);
+
+                mHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        textView.setText(url); // must be inside run()
+
+                        UploadedDb dbHelper = new UploadedDb(ShareActivity.this);
+                        SQLiteDatabase db = dbHelper.getWritableDatabase();
+                        ContentValues values = new ContentValues();
+                        values.put("url", url);
+                        long newRowId = db.insert("uploaded", null, values);
+                    }
+                });
+            }
+        });
+
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_share);
 
-        // Get intent, action and MIME type
         Intent intent = getIntent();
         String action = intent.getAction();
         String mime = intent.getType();
 
-        mHandler = new Handler(Looper.getMainLooper());
-        final TextView textView = (TextView) findViewById(R.id.textView);
-
-        textView.setText("step 1");
+        final TextView textView = findViewById(R.id.textView);
+        textView.setText("uploading... " + mime);
 
         if (Intent.ACTION_SEND.equals(action) && mime != null) {
-
-            Uri uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
-            textView.setText("step 2: "+uri);
-            if (uri != null) {
-                try {
-
-                    final InputStream uriStream = getContentResolver().openInputStream(uri);
-                    //ByteArrayOutputStream buffer_stream = new ByteArrayOutputStream();
-                    //this.copyStream(uriStream, buffer_stream);
-
-                    Log.i("upload", "mime: " + mime);
-                    //if (mime == null) {
-                    //    mime = "application/octet-stream";
-                    //}
-                    final MediaType mediaType = MediaType.parse(mime);
-
-                    // https://stackoverflow.com/questions/25367888/upload-binary-file-with-okhttp-from-resources
-                    RequestBody file_part = new RequestBody() {
-                        @Override
-                        public MediaType contentType() {
-                            return mediaType;
-                        }
-
-                        @Override
-                        public long contentLength() {
-                            try {
-                                return uriStream.available();
-                            } catch (IOException e) {
-                                return 0;
-                            }
-                        }
-
-                        @Override
-                        public void writeTo(BufferedSink sink) throws IOException {
-                            Source source = null;
-                            try {
-                                source = Okio.source(uriStream);
-                                sink.writeAll(source);
-                            } finally {
-                                Util.closeQuietly(source);
-                            }
-                        }
-                    };
-
-
-                    //buffer_stream.toByteArray().toRequestBody();
-
-                    URL api_url = new URL("https://api.teknik.io/v1/Upload");
-                    String filename = uri.getLastPathSegment();
-                    Log.i("upload", "filename "+filename);
-
-                    RequestBody requestBody = new MultipartBody.Builder()
-                            .setType(MultipartBody.FORM)
-                            .addFormDataPart("file", filename, file_part)
-                            .build();
-
-                    Request request = new Request.Builder()
-                            .url(api_url)
-                            .post(requestBody)
-                            .build();
-
-                    client.newCall(request).enqueue(new Callback() {
-                        @Override
-                        public void onFailure(Call call, IOException e) {
-                            final String mMessage = e.toString();
-                            //Log.e(LOG_TAG, mMessage); // no need inside run()
-                            mHandler.post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    Log.e("upload", "http failure "+mMessage);
-                                    //mTextView.setText(mMessage); // must be inside run()
-                                }
-                            });
-                        }
-
-                        @Override
-                        public void onResponse(Call call, Response response) throws IOException {
-                            final String s = response.body().string();
-                            String turl = "";
-                            try {
-                                JSONObject j = new JSONObject(s);
-                                JSONObject r = j.getJSONObject("result");
-                                if (r == null) {
-                                    throw new JSONException("no result: " + s);
-                                }
-                                turl = r.getString("url");
-                            } catch (JSONException e) {
-                                Log.e("upload", "json problem", e);
-                            }
-                            final String url = turl;
-
-                            Intent i = new Intent(Intent.ACTION_VIEW);
-                            i.setData(Uri.parse(url));
-                            startActivity(i);
-
-                            //Log.i(LOG_TAG, mMessage); // no need inside run()
-                            mHandler.post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    textView.setText(url); // must be inside run()
-                                    Log.i("upload", "http ok "+url);
-                                }
-                            });
-                        }
-                    });
-
-                    //PendingIntent pendingResult = createPendingResult(
-                    //        UPLOAD_DONE, new Intent(), 0);
-                    //Upload.startUpload(getApplicationContext(), uri, type, pendingResult);
-/*
-                try {
-                    //String url = this.upload(uri, type);
-
-                    textView.setText("all ok "+uri+" "+url);
-
-                    Context context = getApplicationContext();
-                    //CharSequence text = uri.toString();
-                    CharSequence text = url;
-                    int duration = Toast.LENGTH_LONG;
-                    Toast toast = Toast.makeText(context, text, duration);
-                    toast.show();
-                } catch (Exception e) {
-                    textView.setText("oops");
-                    //throw new RuntimeException(e);
-                }
- */
-                } catch (Exception e) {
-                    Log.e("upload", "something bad", e);
-                    textView.setText("oops");
-                    //throw new RuntimeException(e);
-                }
+            try {
+                doUpload(intent);
+            } catch (Exception e) {
+                Log.e("upload", "something bad", e);
+                textView.setText("oops! " + e);
             }
         } else {
-            textView.setText("weird");
-            // Handle other intents, such as being started from the home screen
+            textView.setText("weird share action");
         }
 
     }
