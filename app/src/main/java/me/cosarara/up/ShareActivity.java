@@ -1,6 +1,8 @@
 package me.cosarara.up;
 
 import android.app.PendingIntent;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
@@ -11,6 +13,7 @@ import android.os.Looper;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.webkit.MimeTypeMap;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -40,13 +43,19 @@ import okio.Okio;
 import okio.Source;
 
 public class ShareActivity extends AppCompatActivity {
+    public void toClipboard(String url) { // copy&pasted because I can't be arsed with fucking android
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData clip = ClipData.newPlainText("URL", url);
+        clipboard.setPrimaryClip(clip);
+
+        Toast.makeText(this, "copied to clipboard", Toast.LENGTH_SHORT).show();
+    }
 
     private final OkHttpClient client = new OkHttpClient();
     private Handler mHandler;
 
     private void doUpload(Intent intent) throws Exception {
         String mime = intent.getType();
-        mHandler = new Handler(Looper.getMainLooper());
         final TextView textView = findViewById(R.id.textView);
 
         Uri uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
@@ -60,6 +69,14 @@ public class ShareActivity extends AppCompatActivity {
             }
             textView.setText("Plain text not implemented yet, sorry!");
             return;
+        }
+
+        if (mime.equals("image/*")) {
+            // try to get something better
+            String extension = MimeTypeMap.getFileExtensionFromUrl(uri.toString());
+            if (extension != null) {
+                mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+            }
         }
 
         final InputStream uriStream = getContentResolver().openInputStream(uri);
@@ -114,19 +131,24 @@ public class ShareActivity extends AppCompatActivity {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
+                try {
+                    uriStream.close();
+                } catch (IOException ec) {
+                }
                 final String mMessage = e.toString();
                 //Log.e(LOG_TAG, mMessage); // no need inside run()
                 mHandler.post(new Runnable() {
                     @Override
                     public void run() {
                         Log.e("upload", "http failure "+mMessage);
-                        //mTextView.setText(mMessage); // must be inside run()
+                        textView.setText(mMessage); // must be inside run()
                     }
                 });
             }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
+                uriStream.close();
                 final String s = response.body().string();
                 String turl = "";
                 try {
@@ -141,10 +163,7 @@ public class ShareActivity extends AppCompatActivity {
                 }
                 final String url = turl;
 
-                Intent i = new Intent(Intent.ACTION_VIEW);
-                i.setData(Uri.parse(url));
-                startActivity(i);
-                Log.i("upload", "http ok "+url);
+                Log.i("upload", "http ok! "+url);
 
                 mHandler.post(new Runnable() {
                     @Override
@@ -156,6 +175,18 @@ public class ShareActivity extends AppCompatActivity {
                         ContentValues values = new ContentValues();
                         values.put("url", url);
                         long newRowId = db.insert("uploaded", null, values);
+                        db.close();
+
+                        Log.i("upload", "sent broadcast");
+                        Intent intent = new Intent("updated");
+                        sendBroadcast(intent);
+
+                        toClipboard(url);
+
+                        Intent i = new Intent(Intent.ACTION_VIEW);
+                        i.setData(Uri.parse(url));
+                        i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                        startActivity(i);
                     }
                 });
             }
@@ -167,6 +198,7 @@ public class ShareActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_share);
+        mHandler = new Handler(Looper.getMainLooper());
 
         Intent intent = getIntent();
         String action = intent.getAction();

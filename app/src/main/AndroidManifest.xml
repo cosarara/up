@@ -10,7 +10,8 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
-        <activity android:name=".ShareActivity">
+        <activity android:name=".ShareActivity"
+                  android:excludeFromRecents="true">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
 
