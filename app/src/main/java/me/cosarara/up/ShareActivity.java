@@ -6,7 +6,10 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -14,6 +17,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.PreferenceManager;
 
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
 import android.widget.TextView;
@@ -72,10 +76,29 @@ public class ShareActivity extends AppCompatActivity {
         }
 
         if (mime.equals("image/*")) {
+            Log.i("upload", "trying to improve mime: " + mime + " from URL " + uri.toString());
             // try to get something better
             String extension = MimeTypeMap.getFileExtensionFromUrl(uri.toString());
-            if (extension != null) {
-                mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+            MimeTypeMap map = MimeTypeMap.getSingleton();
+            if (extension != null && map != null) {
+                String new_mime = map.getMimeTypeFromExtension(extension);
+                Log.i("upload", "new mime: " + new_mime);
+                if (new_mime != null) {
+                    mime = new_mime;
+                }
+            }
+        }
+        if (mime.equals("image/*")) {
+            // https://stackoverflow.com/a/10194912
+            Log.i("upload", "trying to improve mime... again");
+            Cursor cursor = this.getContentResolver().query(uri,
+                    new String[] { MediaStore.MediaColumns.MIME_TYPE },
+                    null, null, null);
+
+            if (cursor != null && cursor.moveToNext())
+            {
+                mime = cursor.getString(0);
+                Log.i("upload", "last attempt at MIME: " + mime);
             }
         }
 
@@ -245,6 +268,12 @@ public class ShareActivity extends AppCompatActivity {
         Intent intent = getIntent();
         String action = intent.getAction();
         String mime = intent.getType();
+
+        //Bundle bundle = intent.getExtras();
+        //for (String key : bundle.keySet()){
+        //    Log.d("upload", "Extra " + key + " -> " + bundle.get(key));
+        //}
+        Log.d("upload", "Data " + intent.getDataString());
 
         final TextView textView = findViewById(R.id.textView);
         textView.setText("uploading... " + mime);
