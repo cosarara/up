@@ -1,4 +1,25 @@
 <resources>
     <string name="app_name">Up</string>
     <string name="settings">Settings</string>
+    <string name="title_activity_settings">Settings</string>
+
+    <string name="server_settings">Server</string>
+    <string name="server_type">Server Type</string>
+    <string name="upload_url">Upload URL</string>
+    <string name="parameter">Form parameter name</string>
+    <string name="api_key">API Key (unimplemented)</string>
+    <string name="url_extractor">URL extraction method</string>
+    <string name="regex">Regex to extract URL from response</string>
+    <string name="prepend">Base URL to prepend to response path</string>
+
+    <string name="behaviour">App Behaviour</string>
+    <string name="open_browser">Open link in browser after upload</string>
+    <string name="clipboard">Copy link to clipboard after upload</string>
+
+    <string name="default_url">https://api.teknik.io/v1/Upload</string>
+
+    <string name="load_teknik">Load Teknik defaults</string>
+    <string name="load_safemoe">Load safe.moe pomf defaults</string>
+    <string name="load_pomfcat">Load pomf.cat defaults</string>
+    <string name="load_uguu">Load Uguu.se defaults</string>
 </resources>

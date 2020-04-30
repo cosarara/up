@@ -5,23 +5,29 @@ import android.content.ClipboardManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.preference.PreferenceManager;
+
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -107,14 +113,15 @@ public class ShareActivity extends AppCompatActivity {
 
 
         //buffer_stream.toByteArray().toRequestBody();
-
-        URL api_url = new URL("https://api.teknik.io/v1/Upload");
+        final SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        URL api_url = new URL(sharedPreferences.getString("upload_url", getResources().getString(R.string.default_url)));
         String filename = uri.getLastPathSegment();
         Log.i("upload", "filename "+filename);
 
+        String form_name = sharedPreferences.getString("parameter", "file");
         RequestBody requestBody = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
-                .addFormDataPart("file", filename, file_part)
+                .addFormDataPart(form_name, filename, file_part)
                 .build();
 
         Request request = new Request.Builder()
@@ -145,17 +152,50 @@ public class ShareActivity extends AppCompatActivity {
                 uriStream.close();
                 final String s = response.body().string();
                 String turl = "";
-                try {
-                    JSONObject j = new JSONObject(s);
-                    JSONObject r = j.getJSONObject("result");
-                    if (r == null) {
-                        throw new JSONException("no result: " + s);
+                String extractor = sharedPreferences.getString("extractor", "teknik");
+                Log.i("upload" , "extractor: "+extractor);
+                if (extractor.equals("teknik")) {
+                    try {
+                        JSONObject j = new JSONObject(s);
+                        JSONObject r = j.getJSONObject("result");
+                        if (r == null) {
+                            throw new JSONException("no result: " + s);
+                        }
+                        turl = r.getString("url");
+                    } catch (JSONException e) {
+                        Log.e("upload", "json problem", e);
                     }
-                    turl = r.getString("url");
-                } catch (JSONException e) {
-                    Log.e("upload", "json problem", e);
+                } else if (extractor.equals("pomf")) {
+                    try {
+                        JSONObject j = new JSONObject(s);
+                        Log.i("upload" , "json parsed");
+                        JSONArray a = j.getJSONArray("files");
+                        Log.i("upload" , "files array ok");
+                        JSONObject r = a.getJSONObject(0);
+                        Log.i("upload" , "files object ok");
+
+                        if (r == null) {
+                            throw new JSONException("no result: " + s);
+                        }
+                        turl = r.getString("url");
+                        Log.i("upload" , "string ok "+turl);
+                    } catch (JSONException e) {
+                        Log.e("upload", "json problem", e);
+                    }
+                } else if (extractor.equals("plain")) {
+                    turl = s;
+                } else if (extractor.equals("regex")) {
+                    Pattern p = Pattern.compile(sharedPreferences.getString("regex", "\"url\": ?\"([^\"]+)\""));
+                    Matcher m = p.matcher(s);
+                    turl = m.group(1);
                 }
-                final String url = turl;
+
+                final String url = sharedPreferences.getString("prepend", "") + turl;
+
+                if (url.equals("")) {
+                    Log.e("upload" , "URL not extracted "+s);
+                    return;
+                }
 
                 Log.i("upload", "http ok! "+url);
 
@@ -175,12 +215,19 @@ public class ShareActivity extends AppCompatActivity {
                         Intent intent = new Intent("updated");
                         sendBroadcast(intent);
 
-                        toClipboard(url);
+                        if (sharedPreferences.getBoolean("clipboard", true)) {
+                            toClipboard(url);
+                        }
 
-                        Intent i = new Intent(Intent.ACTION_VIEW);
-                        i.setData(Uri.parse(url));
-                        i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                        startActivity(i);
+                        if (sharedPreferences.getBoolean("open_browser", true)) {
+                            Intent i = new Intent(Intent.ACTION_VIEW);
+                            i.setData(Uri.parse(url));
+                            //i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                            finish();
+                            startActivity(i);
+                        } else {
+                            finish();
+                        }
                     }
                 });
             }
@@ -190,6 +237,7 @@ public class ShareActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Log.i("upload", "creating share activity...");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_share);
         mHandler = new Handler(Looper.getMainLooper());
@@ -209,6 +257,7 @@ public class ShareActivity extends AppCompatActivity {
                 textView.setText("oops! " + e);
             }
         } else {
+            Log.i("upload", "unknown share action");
             textView.setText("weird share action");
         }
 
