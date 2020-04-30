@@ -13,12 +13,14 @@
     <string-array name="url_extractor">
         <item>Teknik JSON</item>
         <item>pomf JSON</item>
+        <item>uPste JSON</item>
         <item>Plain URL</item>
         <item>Regex</item>
     </string-array>
     <string-array name="extractor_values">
         <item>teknik</item>
         <item>pomf</item>
+        <item>upste</item>
         <item>plain</item>
         <item>regex</item>
     </string-array>

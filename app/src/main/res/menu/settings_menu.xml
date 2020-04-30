@@ -6,4 +6,6 @@
         android:title="@string/load_pomfcat"/>
     <item android:id="@+id/load_uguu"
         android:title="@string/load_uguu"/>
+    <item android:id="@+id/load_upste"
+        android:title="@string/load_upste"/>
 </menu>

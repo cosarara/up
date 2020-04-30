@@ -7,7 +7,7 @@
     <string name="server_type">Server Type</string>
     <string name="upload_url">Upload URL</string>
     <string name="parameter">Form parameter name</string>
-    <string name="api_key">API Key (unimplemented)</string>
+    <string name="api_key">API Key</string>
     <string name="url_extractor">URL extraction method</string>
     <string name="regex">Regex to extract URL from response</string>
     <string name="prepend">Base URL to prepend to response path</string>
@@ -22,4 +22,5 @@
     <string name="load_safemoe">Load safe.moe pomf defaults</string>
     <string name="load_pomfcat">Load pomf.cat defaults</string>
     <string name="load_uguu">Load Uguu.se defaults</string>
+    <string name="load_upste">Load uPste pste.pw defaults</string>
 </resources>

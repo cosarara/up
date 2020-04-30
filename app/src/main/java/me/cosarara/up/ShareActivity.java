@@ -142,10 +142,16 @@ public class ShareActivity extends AppCompatActivity {
         Log.i("upload", "filename "+filename);
 
         String form_name = sharedPreferences.getString("parameter", "file");
-        RequestBody requestBody = new MultipartBody.Builder()
+        MultipartBody.Builder builder = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
-                .addFormDataPart(form_name, filename, file_part)
-                .build();
+                .addFormDataPart(form_name, filename, file_part);
+
+        String api_key = sharedPreferences.getString("api_key", null);
+        if (api_key != null && !api_key.isEmpty()) {
+            builder.addFormDataPart("key", api_key);
+        }
+
+        RequestBody requestBody = builder.build();
 
         Request request = new Request.Builder()
                 .url(api_url)
@@ -185,6 +191,13 @@ public class ShareActivity extends AppCompatActivity {
                             throw new JSONException("no result: " + s);
                         }
                         turl = r.getString("url");
+                    } catch (JSONException e) {
+                        Log.e("upload", "json problem", e);
+                    }
+                } else if (extractor.equals("upste")) {
+                    try {
+                        JSONObject j = new JSONObject(s);
+                        turl = j.getString("url");
                     } catch (JSONException e) {
                         Log.e("upload", "json problem", e);
                     }

@@ -58,6 +58,11 @@ public class SettingsActivity extends AppCompatActivity {
                 editor.putString("parameter", "files[]");
                 editor.putString("extractor", "pomf");
                 editor.putString("prepend", "https://a.pomf.cat/");
+            } else if (id == R.id.load_upste) {
+                editor.putString("upload_url", "https://pste.pw/api/upload");
+                editor.putString("parameter", "file");
+                editor.putString("extractor", "upste");
+                editor.putString("prepend", "");
             }
             editor.commit();
             finish();
