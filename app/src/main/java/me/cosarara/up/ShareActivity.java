@@ -230,6 +230,12 @@ public class ShareActivity extends AppCompatActivity {
 
                 if (url.equals("")) {
                     Log.e("upload" , "URL not extracted "+s);
+                    mHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            textView.setText("couldn't get an URL, attach logcat or something\n"+s);
+                        }
+                    });
                     return;
                 }
 
